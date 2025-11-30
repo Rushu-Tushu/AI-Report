@@ -9,6 +9,10 @@ const pdfParse = require("pdf-parse");
  * Common section headers in research papers
  * Used for detecting document structure
  */
+
+const MAX_PAGES = 20;
+
+
 const SECTION_PATTERNS = [
   { key: 'abstract', patterns: [/^abstract$/i, /^summary$/i] },
   { key: 'introduction', patterns: [/^introduction$/i, /^1\.?\s*introduction$/i, /^background$/i] },
@@ -247,6 +251,10 @@ export const processPdf = async (pdfBuffer) => {
     const tables = extractTables(fullText, 0); // Page 0 = unknown specific page
     const figures = extractFigures(fullText, 0);
     const equations = extractEquations(fullText, 0);
+
+    if (pdfData.pageCount > MAX_PAGES) {
+      throw new Error(`PDF exceeds ${MAX_PAGES} page limit. Your document has ${pdfData.pageCount} pages. Please upload a smaller document.`);
+    }
     
     // Add warnings for potential issues
     if (Object.keys(sections).length <= 1) {
