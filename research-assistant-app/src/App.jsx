@@ -8,6 +8,7 @@ import LoadingSpinner from './components/common/LoadingSpinner';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import AuthCallback from './pages/AuthCallback';
 import Dashboard from './pages/Dashboard';
 import Documents from './pages/Documents';
 import Templates from './pages/Templates';
@@ -15,6 +16,8 @@ import ProjectNew from './pages/ProjectNew';
 import ProjectView from './pages/ProjectView';
 import ProjectEdit from './pages/ProjectEdit';
 import NotFound from './pages/NotFound';
+import Projects from './pages/Projects';
+
 
 /**
  * Protected Route Wrapper
@@ -74,6 +77,7 @@ function AppRoutes() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
       </Route>
 
       {/* Protected Routes - Require authentication */}
@@ -82,6 +86,7 @@ function AppRoutes() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/documents" element={<Documents />} />
           <Route path="/templates" element={<Templates />} />
+          <Route path="/projects" element={<Projects />} />
           <Route path="/projects/new" element={<ProjectNew />} />
           <Route path="/projects/:id" element={<ProjectView />} />
           <Route path="/projects/:id/edit" element={<ProjectEdit />} />

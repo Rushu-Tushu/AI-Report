@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-50 to-white">
+    <div className="min-h-screen bg-linear-to-br from-sky-50 to-white">
       {/* Navigation */}
       <nav className="px-4 py-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -49,7 +49,7 @@ export default function Landing() {
               Start Free Trial
             </Link>
             
-              href="#features"
+            <a href="#features"
               className="px-6 py-3 bg-white text-gray-700 font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors w-full sm:w-auto"
             >
               Learn More
@@ -83,28 +83,28 @@ export default function Landing() {
           </h2>
           <div className="space-y-8">
             <div className="flex items-start space-x-4">
-              <div className="flex-shrink-0 w-10 h-10 bg-sky-600 rounded-full flex items-center justify-center text-white font-bold">1</div>
+              <div className="shrink-0 w-10 h-10 bg-sky-600 rounded-full flex items-center justify-center text-white font-bold">1</div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Upload Your Research Papers</h3>
                 <p className="text-gray-600 mt-1">Upload one or more PDF research papers. We'll extract all the content, metadata, and references.</p>
               </div>
             </div>
             <div className="flex items-start space-x-4">
-              <div className="flex-shrink-0 w-10 h-10 bg-sky-600 rounded-full flex items-center justify-center text-white font-bold">2</div>
+              <div className="shrink-0 w-10 h-10 bg-sky-600 rounded-full flex items-center justify-center text-white font-bold">2</div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Choose Your Template</h3>
                 <p className="text-gray-600 mt-1">Upload a DOCX template with your desired structure — headings, sections, and formatting.</p>
               </div>
             </div>
             <div className="flex items-start space-x-4">
-              <div className="flex-shrink-0 w-10 h-10 bg-sky-600 rounded-full flex items-center justify-center text-white font-bold">3</div>
+              <div className="shrink-0 w-10 h-10 bg-sky-600 rounded-full flex items-center justify-center text-white font-bold">3</div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">AI Generates Your Report</h3>
                 <p className="text-gray-600 mt-1">Our AI maps source content to your template sections, rewrites for clarity, and maintains citations.</p>
               </div>
             </div>
             <div className="flex items-start space-x-4">
-              <div className="flex-shrink-0 w-10 h-10 bg-sky-600 rounded-full flex items-center justify-center text-white font-bold">4</div>
+              <div className="shrink-0 w-10 h-10 bg-sky-600 rounded-full flex items-center justify-center text-white font-bold">4</div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Edit and Export</h3>
                 <p className="text-gray-600 mt-1">Review in our rich editor, make adjustments, and export as a professional DOCX document.</p>
