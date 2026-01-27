@@ -24,6 +24,7 @@ const app = express();
 app.use(helmet());
 
 // CORS (allows frontend to call this API)
+// CORS (allows frontend to call this API)
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173', // Vite default port
   credentials: true,
@@ -43,8 +44,8 @@ app.use(express.urlencoded({ extended: true }));
 // ======================
 
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     environment: config.nodeEnv,
   });
@@ -65,7 +66,7 @@ app.use('/api/exports', exportsRouter);
 // ======================
 
 app.use((req, res) => {
-  res.status(404).json({ 
+  res.status(404).json({
     error: 'Not Found',
     message: `Route ${req.method} ${req.path} not found`,
   });
