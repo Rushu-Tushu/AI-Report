@@ -26,7 +26,7 @@ export const generationEvents = new EventEmitter();
  */
 export const generateProjectContent = async (project, userId) => {
   const { id: projectId, mode, purpose, template, documents, section_mapping, global_instructions } = project;
-  
+
   // Update project status to generating
   await updateProjectStatus(projectId, 'generating', {
     totalSections: section_mapping.length,
@@ -35,59 +35,60 @@ export const generateProjectContent = async (project, userId) => {
     startedAt: new Date().toISOString(),
     errors: [],
   });
-  
+
   // Create initial draft
   const draft = await createDraft(projectId);
-  
+
   const results = {
     draftId: draft.id,
     sections: [],
     errors: [],
     warnings: [],
   };
-  
+
   try {
-    // Process each section
-    for (let i = 0; i < section_mapping.length; i++) {
-      const sectionConfig = section_mapping[i];
+    // Concurrency limit
+    const CONCURRENCY = 3;
+    const processSection = async (sectionConfig, index) => {
       const sectionTitle = sectionConfig.templateSectionTitle;
-      
-      // Emit progress event
-      generationEvents.emit('progress', {
-        projectId,
-        totalSections: section_mapping.length,
-        completedSections: i,
-        currentSection: sectionTitle,
-      });
-      
-      // Update project progress
-      await updateProjectStatus(projectId, 'generating', {
-        totalSections: section_mapping.length,
-        completedSections: i,
-        currentSection: sectionTitle,
-        errors: results.errors,
-      });
-      
+
       try {
+        // Emit progress event (start)
+        generationEvents.emit('progress', {
+          projectId,
+          totalSections: section_mapping.length,
+          completedSections: results.sections.length,
+          currentSection: sectionTitle,
+        });
+
         // Generate section content based on mode
         let sectionResult;
-        
-        if (mode === 'single') {
-          sectionResult = await generateSingleDocSection(
-            sectionConfig,
-            documents[0],
-            purpose,
-            global_instructions
-          );
-        } else {
-          sectionResult = await generateMultiDocSection(
-            sectionConfig,
-            documents,
-            purpose,
-            global_instructions
-          );
-        }
-        
+
+        // Add timeout to prevent infinite hangs (5 minutes per section)
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Generation timed out')), 300000);
+        });
+
+        const generationPromise = (async () => {
+          if (mode === 'single') {
+            return await generateSingleDocSection(
+              sectionConfig,
+              documents[0],
+              purpose,
+              global_instructions
+            );
+          } else {
+            return await generateMultiDocSection(
+              sectionConfig,
+              documents,
+              purpose,
+              global_instructions
+            );
+          }
+        })();
+
+        sectionResult = await Promise.race([generationPromise, timeoutPromise]);
+
         // Update draft with section content
         await updateDraftSection(draft.id, {
           templateSectionId: sectionConfig.templateSectionId,
@@ -96,14 +97,14 @@ export const generateProjectContent = async (project, userId) => {
           sourceRefs: sectionResult.sourceRefs || [],
           warnings: sectionResult.warnings || [],
         });
-        
+
         results.sections.push({
           sectionId: sectionConfig.templateSectionId,
           sectionTitle,
           success: sectionResult.success,
           wordCount: sectionResult.content?.split(/\s+/).length || 0,
         });
-        
+
         // Emit section complete event
         generationEvents.emit('section-complete', {
           projectId,
@@ -112,19 +113,19 @@ export const generateProjectContent = async (project, userId) => {
           preview: sectionResult.content?.substring(0, 200) || '',
           success: sectionResult.success,
         });
-        
+
         if (sectionResult.warnings?.length > 0) {
           results.warnings.push(...sectionResult.warnings.map(w => `${sectionTitle}: ${w}`));
         }
-        
+
       } catch (sectionError) {
         console.error(`Error generating section "${sectionTitle}":`, sectionError);
-        
+
         results.errors.push({
           section: sectionTitle,
           error: sectionError.message,
         });
-        
+
         // Emit error event but continue with other sections
         generationEvents.emit('error', {
           projectId,
@@ -132,7 +133,7 @@ export const generateProjectContent = async (project, userId) => {
           error: sectionError.message,
           recoverable: true,
         });
-        
+
         // Add placeholder content to draft
         await updateDraftSection(draft.id, {
           templateSectionId: sectionConfig.templateSectionId,
@@ -141,13 +142,27 @@ export const generateProjectContent = async (project, userId) => {
           sourceRefs: [],
           warnings: [sectionError.message],
         });
+      } finally {
+        // Update valid completed count for status
+        await updateProjectStatus(projectId, 'generating', {
+          totalSections: section_mapping.length,
+          completedSections: results.sections.length,
+          currentSection: `Processing... (${results.sections.length}/${section_mapping.length})`,
+          errors: results.errors,
+        });
       }
+    };
+
+    // Process in batches
+    for (let i = 0; i < section_mapping.length; i += CONCURRENCY) {
+      const batch = section_mapping.slice(i, i + CONCURRENCY);
+      await Promise.all(batch.map((section, batchIndex) => processSection(section, i + batchIndex)));
     }
-    
+
     // Collect references from all documents
     const allReferences = collectReferences(documents);
     await updateDraftReferences(draft.id, allReferences);
-    
+
     // Update project status to ready
     await updateProjectStatus(projectId, 'ready', {
       totalSections: section_mapping.length,
@@ -156,7 +171,7 @@ export const generateProjectContent = async (project, userId) => {
       completedAt: new Date().toISOString(),
       errors: results.errors,
     });
-    
+
     // Emit complete event
     generationEvents.emit('complete', {
       projectId,
@@ -165,25 +180,25 @@ export const generateProjectContent = async (project, userId) => {
       sectionsGenerated: results.sections.length,
       errors: results.errors,
     });
-    
+
     return results;
-    
+
   } catch (error) {
     console.error('Generation failed:', error);
-    
+
     // Update project status to error
     await updateProjectStatus(projectId, 'draft', {
       error: error.message,
       failedAt: new Date().toISOString(),
     });
-    
+
     // Emit error event
     generationEvents.emit('error', {
       projectId,
       error: error.message,
       recoverable: false,
     });
-    
+
     throw error;
   }
 };
@@ -193,10 +208,10 @@ export const generateProjectContent = async (project, userId) => {
  */
 const generateSingleDocSection = async (sectionConfig, document, purpose, globalInstructions) => {
   const { sourceMapping, instructions, targetLength, templateSectionTitle } = sectionConfig;
-  
+
   // Get source content from document
   const sourceContent = extractSourceContent(document, sourceMapping.sourceSections);
-  
+
   if (!sourceContent || sourceContent.trim().length < 50) {
     return {
       success: false,
@@ -205,10 +220,10 @@ const generateSingleDocSection = async (sectionConfig, document, purpose, global
       sourceRefs: [],
     };
   }
-  
+
   // Truncate if needed
   const { text: truncatedContent, truncated } = truncateForContext(sourceContent, 100000);
-  
+
   // Build prompt
   const prompt = buildSectionRewritePrompt({
     sectionTitle: templateSectionTitle,
@@ -219,13 +234,13 @@ const generateSingleDocSection = async (sectionConfig, document, purpose, global
     purpose,
     documentMetadata: document.metadata,
   });
-  
+
   // Generate content
   const response = await generateContent(prompt);
-  
+
   // Parse response
   const parsed = parseSectionContent(response, templateSectionTitle);
-  
+
   return {
     success: parsed.success,
     content: parsed.content,
@@ -245,12 +260,12 @@ const generateSingleDocSection = async (sectionConfig, document, purpose, global
  */
 const generateMultiDocSection = async (sectionConfig, documents, purpose, globalInstructions) => {
   const { sourceMapping, instructions, targetLength, templateSectionTitle } = sectionConfig;
-  
+
   // Determine which documents to use
   const docsToUse = sourceMapping.sourceDocuments.includes('all')
     ? documents
     : documents.filter(d => sourceMapping.sourceDocuments.includes(d.id));
-  
+
   // Build document content array
   const docContents = docsToUse.map(doc => {
     const content = extractSourceContent(doc, sourceMapping.sourceSections);
@@ -260,7 +275,7 @@ const generateMultiDocSection = async (sectionConfig, documents, purpose, global
       content: content || '',
     };
   }).filter(d => d.content.length > 50);
-  
+
   if (docContents.length === 0) {
     return {
       success: false,
@@ -269,10 +284,10 @@ const generateMultiDocSection = async (sectionConfig, documents, purpose, global
       sourceRefs: [],
     };
   }
-  
+
   // Choose prompt type based on purpose
   let prompt;
-  
+
   if (purpose === 'comparative') {
     prompt = buildComparativeAnalysisPrompt({
       sectionTitle: templateSectionTitle,
@@ -290,13 +305,13 @@ const generateMultiDocSection = async (sectionConfig, documents, purpose, global
       purpose,
     });
   }
-  
+
   // Generate content
   const response = await generateContent(prompt);
-  
+
   // Parse response
   const parsed = parseMultiDocResponse(response, docContents.length);
-  
+
   return {
     success: parsed.success !== false,
     content: parsed.content,
@@ -313,26 +328,26 @@ const generateMultiDocSection = async (sectionConfig, documents, purpose, global
  */
 const extractSourceContent = (document, sectionKeys) => {
   const sections = document.extracted_content?.sections || {};
-  
+
   if (!sectionKeys || sectionKeys.length === 0) {
     // Return all content if no specific sections requested
     return document.extracted_content?.fullText || '';
   }
-  
+
   // Collect content from requested sections
   const contents = [];
-  
+
   for (const key of sectionKeys) {
     if (sections[key]?.text) {
       contents.push(sections[key].text);
     }
   }
-  
+
   // If no matching sections, return full text
   if (contents.length === 0) {
     return document.extracted_content?.fullText || '';
   }
-  
+
   return contents.join('\n\n');
 };
 
@@ -342,10 +357,10 @@ const extractSourceContent = (document, sectionKeys) => {
 const collectReferences = (documents) => {
   const allRefs = [];
   let refIndex = 1;
-  
+
   for (const doc of documents) {
     const docRefs = doc.references || [];
-    
+
     for (const ref of docRefs) {
       allRefs.push({
         id: `ref_${refIndex}`,
@@ -362,7 +377,7 @@ const collectReferences = (documents) => {
       refIndex++;
     }
   }
-  
+
   return allRefs;
 };
 
@@ -374,7 +389,7 @@ const formatReference = (ref) => {
   const year = ref.year || 'n.d.';
   const title = ref.title || 'Untitled';
   const journal = ref.journal ? `. ${ref.journal}` : '';
-  
+
   return `${authors} (${year}). ${title}${journal}.`;
 };
 
@@ -383,7 +398,7 @@ const formatReference = (ref) => {
  */
 const updateDraftReferences = async (draftId, references) => {
   const { supabaseAdmin } = await import('../config/supabase.js');
-  
+
   await supabaseAdmin
     .from('drafts')
     .update({ references })

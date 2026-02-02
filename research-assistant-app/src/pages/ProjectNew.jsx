@@ -92,7 +92,10 @@ export default function ProjectNew() {
       const initialMapping = selectedTemplate.structure.map((section) => ({
         templateSectionId: section.id,
         templateSectionTitle: section.title,
-        sourceSections: [],
+        sourceMapping: {
+          sourceSections: [],
+          sourceDocuments: ['all'],
+        },
         instructions: '',
       }));
       setSectionMapping(initialMapping);
