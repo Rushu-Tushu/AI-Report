@@ -212,6 +212,13 @@ const generateSingleDocSection = async (sectionConfig, document, purpose, global
   // Get source content from document
   const sourceContent = extractSourceContent(document, sourceMapping.sourceSections);
 
+  console.log(`[DEBUG] Generating section "${templateSectionTitle}"`);
+  console.log(`[DEBUG] Document: ${document.filename} (ID: ${document.id})`);
+  console.log(`[DEBUG] Source content length: ${sourceContent ? sourceContent.length : 0} chars`);
+  if (document.parsing_warnings && document.parsing_warnings.length > 0) {
+    console.log(`[DEBUG] Document warnings:`, document.parsing_warnings);
+  }
+
   if (!sourceContent || sourceContent.trim().length < 50) {
     return {
       success: false,

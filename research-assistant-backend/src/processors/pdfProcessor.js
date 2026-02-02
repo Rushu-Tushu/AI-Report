@@ -3,15 +3,16 @@ import { generateId, normalizeWhitespace } from '../utils/helpers.js';
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 
-const pdfParse = require("pdf-parse");
+let pdfParse = require("pdf-parse");
+// Handle case where require returns object with default property
+if (typeof pdfParse !== 'function' && pdfParse.default) {
+  pdfParse = pdfParse.default;
+}
 
 /**
  * Common section headers in research papers
  * Used for detecting document structure
  */
-
-
-
 
 const SECTION_PATTERNS = [
   { key: 'abstract', patterns: [/^abstract$/i, /^summary$/i] },
