@@ -60,10 +60,10 @@ const PROJECT_PURPOSES = [
 
 export default function ProjectNew() {
   const navigate = useNavigate();
-  
+
   // Step state
   const [currentStep, setCurrentStep] = useState(1);
-  
+
   // Form data
   const [mode, setMode] = useState('');
   const [purpose, setPurpose] = useState('');
@@ -71,11 +71,11 @@ export default function ProjectNew() {
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [projectName, setProjectName] = useState('');
   const [sectionMapping, setSectionMapping] = useState([]);
-  
+
   // Data from API
   const [documents, setDocuments] = useState([]);
   const [templates, setTemplates] = useState([]);
-  
+
   // UI state
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -90,7 +90,8 @@ export default function ProjectNew() {
   useEffect(() => {
     if (selectedTemplate?.structure) {
       const initialMapping = selectedTemplate.structure.map((section) => ({
-        templateSection: section.title,
+        templateSectionId: section.id,
+        templateSectionTitle: section.title,
         sourceSections: [],
         instructions: '',
       }));
@@ -102,7 +103,7 @@ export default function ProjectNew() {
     try {
       setLoading(true);
       const [docsRes, templatesRes] = await Promise.all([
-        documentsApi.list({ status: 'ready' }),
+        documentsApi.list(),
         templatesApi.list(),
       ]);
       setDocuments(docsRes.documents || []);
@@ -117,7 +118,7 @@ export default function ProjectNew() {
 
   const handleNext = () => {
     setError(null);
-    
+
     // Validation for each step
     if (currentStep === 1 && !mode) {
       setError('Please select a project mode');
@@ -139,7 +140,7 @@ export default function ProjectNew() {
       setError('Please select a template');
       return;
     }
-    
+
     setCurrentStep((prev) => Math.min(prev + 1, STEPS.length));
   };
 
@@ -181,7 +182,7 @@ export default function ProjectNew() {
       };
 
       const response = await projectsApi.create(projectData);
-      
+
       // Navigate to the new project
       navigate(`/projects/${response.project.id}`);
     } catch (err) {
@@ -215,8 +216,8 @@ export default function ProjectNew() {
                   currentStep > step.id
                     ? 'bg-sky-600 text-white'
                     : currentStep === step.id
-                    ? 'bg-sky-600 text-white'
-                    : 'bg-gray-200 text-gray-600'
+                      ? 'bg-sky-600 text-white'
+                      : 'bg-gray-200 text-gray-600'
                 )}
               >
                 {currentStep > step.id ? (
@@ -262,7 +263,7 @@ export default function ProjectNew() {
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-gray-900">Select Project Mode</h2>
             <p className="text-gray-600">Choose whether to work with one or multiple documents.</p>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
               {PROJECT_MODES.map((m) => (
                 <button
@@ -289,7 +290,7 @@ export default function ProjectNew() {
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-gray-900">Select Purpose</h2>
             <p className="text-gray-600">What type of output do you want to generate?</p>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
               {PROJECT_PURPOSES.filter((p) => !p.multiOnly || mode === 'multi').map((p) => (
                 <button
@@ -320,7 +321,7 @@ export default function ProjectNew() {
                 ? 'Choose the document to generate a report from.'
                 : 'Choose the documents to include in your report.'}
             </p>
-            
+
             {documents.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-gray-500 mb-4">No documents available. Please upload a PDF first.</p>
@@ -365,7 +366,7 @@ export default function ProjectNew() {
                 ))}
               </div>
             )}
-            
+
             {selectedDocuments.length > 0 && (
               <p className="text-sm text-gray-600">
                 {selectedDocuments.length} document{selectedDocuments.length > 1 ? 's' : ''} selected
@@ -379,7 +380,7 @@ export default function ProjectNew() {
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-gray-900">Select Template</h2>
             <p className="text-gray-600">Choose a template to structure your output.</p>
-            
+
             {templates.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-gray-500 mb-4">No templates available. Please upload a DOCX template first.</p>
@@ -431,7 +432,7 @@ export default function ProjectNew() {
         {currentStep === 5 && (
           <div className="space-y-6">
             <h2 className="text-lg font-semibold text-gray-900">Configure Project</h2>
-            
+
             <Input
               label="Project Name"
               value={projectName}
@@ -493,7 +494,7 @@ export default function ProjectNew() {
           >
             {currentStep === 1 ? 'Cancel' : 'Back'}
           </Button>
-          
+
           {currentStep < STEPS.length ? (
             <Button onClick={handleNext}>
               Next

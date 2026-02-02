@@ -20,12 +20,12 @@ api.interceptors.request.use(
   async (config) => {
     // Get current session from Supabase
     const { data: { session } } = await supabase.auth.getSession();
-    
+
     // If user is logged in, attach their token
     if (session?.access_token) {
       config.headers.Authorization = `Bearer ${session.access_token}`;
     }
-    
+
     return config;
   },
   (error) => {
@@ -60,7 +60,7 @@ export const documentsApi = {
   upload: async (file, onProgress) => {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     const response = await api.post('/documents', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (progressEvent) => {
@@ -70,10 +70,10 @@ export const documentsApi = {
         }
       },
     });
-    
+
     return response.data;
   },
-  
+
   /**
    * Get all documents for current user
    * @param {Object} params - Query params { page, limit, status }
@@ -82,7 +82,7 @@ export const documentsApi = {
     const response = await api.get('/documents', { params });
     return response.data;
   },
-  
+
   /**
    * Get a single document by ID
    * @param {string} id - Document ID
@@ -91,7 +91,7 @@ export const documentsApi = {
     const response = await api.get(`/documents/${id}`);
     return response.data;
   },
-  
+
   /**
    * Get document processing status (for polling)
    * @param {string} id - Document ID
@@ -100,7 +100,7 @@ export const documentsApi = {
     const response = await api.get(`/documents/${id}/status`);
     return response.data;
   },
-  
+
   /**
    * Get document summary with section info
    * @param {string} id - Document ID
@@ -109,7 +109,7 @@ export const documentsApi = {
     const response = await api.get(`/documents/${id}/summary`);
     return response.data;
   },
-  
+
   /**
    * Reprocess a document (retry extraction)
    * @param {string} id - Document ID
@@ -118,7 +118,7 @@ export const documentsApi = {
     const response = await api.post(`/documents/${id}/reprocess`);
     return response.data;
   },
-  
+
   /**
    * Delete a document
    * @param {string} id - Document ID
@@ -142,7 +142,7 @@ export const templatesApi = {
   upload: async (file, onProgress) => {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     const response = await api.post('/templates', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (progressEvent) => {
@@ -152,10 +152,10 @@ export const templatesApi = {
         }
       },
     });
-    
+
     return response.data;
   },
-  
+
   /**
    * Get all templates for current user
    * @param {Object} params - Query params { page, limit }
@@ -164,7 +164,7 @@ export const templatesApi = {
     const response = await api.get('/templates', { params });
     return response.data;
   },
-  
+
   /**
    * Get a single template by ID
    * @param {string} id - Template ID
@@ -173,7 +173,7 @@ export const templatesApi = {
     const response = await api.get(`/templates/${id}`);
     return response.data;
   },
-  
+
   /**
    * Get template structure (sections, placeholders)
    * @param {string} id - Template ID
@@ -182,7 +182,7 @@ export const templatesApi = {
     const response = await api.get(`/templates/${id}/structure`);
     return response.data;
   },
-  
+
   /**
    * Delete a template
    * @param {string} id - Template ID
@@ -206,7 +206,7 @@ export const projectsApi = {
     const response = await api.post('/projects', data);
     return response.data;
   },
-  
+
   /**
    * Get all projects for current user
    * @param {Object} params - Query params { page, limit, status }
@@ -215,7 +215,7 @@ export const projectsApi = {
     const response = await api.get('/projects', { params });
     return response.data;
   },
-  
+
   /**
    * Get a single project by ID
    * @param {string} id - Project ID
@@ -227,7 +227,7 @@ export const projectsApi = {
     });
     return response.data;
   },
-  
+
   /**
    * Get project summary
    * @param {string} id - Project ID
@@ -236,7 +236,7 @@ export const projectsApi = {
     const response = await api.get(`/projects/${id}/summary`);
     return response.data;
   },
-  
+
   /**
    * Update project settings
    * @param {string} id - Project ID
@@ -246,7 +246,7 @@ export const projectsApi = {
     const response = await api.patch(`/projects/${id}`, data);
     return response.data;
   },
-  
+
   /**
    * Start AI generation for a project
    * @param {string} id - Project ID
@@ -255,7 +255,7 @@ export const projectsApi = {
     const response = await api.post(`/projects/${id}/generate`);
     return response.data;
   },
-  
+
   /**
    * Subscribe to generation progress via Server-Sent Events
    * @param {string} id - Project ID
@@ -264,54 +264,72 @@ export const projectsApi = {
    */
   subscribeToGeneration: (id, handlers) => {
     const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
-    const eventSource = new EventSource(`${baseUrl}/projects/${id}/generation-status`);
-    
-    // Handle generic messages
-    eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      handlers.onMessage?.(data);
-    };
-    
-    // Handle progress updates
-    eventSource.addEventListener('progress', (event) => {
-      const data = JSON.parse(event.data);
-      handlers.onProgress?.(data);
-    });
-    
-    // Handle section completion
-    eventSource.addEventListener('section-complete', (event) => {
-      const data = JSON.parse(event.data);
-      handlers.onSectionComplete?.(data);
-    });
-    
-    // Handle errors during generation
-    eventSource.addEventListener('error', (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        handlers.onError?.(data);
-      } catch {
+
+    // We need to pass the auth token for SSE
+    let eventSource = null;
+    let isActive = true;
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!isActive) return;
+
+      const token = session?.access_token;
+      if (!token) {
         handlers.onConnectionError?.();
+        return;
       }
+
+      eventSource = new EventSource(`${baseUrl}/projects/${id}/generation-status?token=${token}`);
+
+      // Handle generic messages
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        handlers.onMessage?.(data);
+      };
+
+      // Handle progress updates
+      eventSource.addEventListener('progress', (event) => {
+        const data = JSON.parse(event.data);
+        handlers.onProgress?.(data);
+      });
+
+      // Handle section completion
+      eventSource.addEventListener('section-complete', (event) => {
+        const data = JSON.parse(event.data);
+        handlers.onSectionComplete?.(data);
+      });
+
+      // Handle errors during generation
+      eventSource.addEventListener('error', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handlers.onError?.(data);
+        } catch {
+          handlers.onConnectionError?.();
+        }
+      });
+
+      // Handle generation complete
+      eventSource.addEventListener('complete', (event) => {
+        const data = JSON.parse(event.data);
+        handlers.onComplete?.(data);
+        eventSource.close();
+      });
+
+      // Handle connection errors
+      eventSource.onerror = () => {
+        handlers.onConnectionError?.();
+      };
     });
-    
-    // Handle generation complete
-    eventSource.addEventListener('complete', (event) => {
-      const data = JSON.parse(event.data);
-      handlers.onComplete?.(data);
-      eventSource.close();
-    });
-    
-    // Handle connection errors
-    eventSource.onerror = () => {
-      handlers.onConnectionError?.();
-    };
-    
+
     // Return unsubscribe function
     return () => {
-      eventSource.close();
+      isActive = false;
+      if (eventSource) {
+        eventSource.close();
+      }
     };
   },
-  
+
   /**
    * Delete a project
    * @param {string} id - Project ID
@@ -335,7 +353,7 @@ export const draftsApi = {
     const response = await api.get(`/drafts/project/${projectId}`);
     return response.data;
   },
-  
+
   /**
    * Save draft content (from editor)
    * @param {string} projectId - Project ID
@@ -345,7 +363,7 @@ export const draftsApi = {
     const response = await api.patch(`/drafts/project/${projectId}`, { content });
     return response.data;
   },
-  
+
   /**
    * Get list of sections in draft
    * @param {string} projectId - Project ID
@@ -354,7 +372,7 @@ export const draftsApi = {
     const response = await api.get(`/drafts/project/${projectId}/sections`);
     return response.data;
   },
-  
+
   /**
    * Get references from draft
    * @param {string} projectId - Project ID
@@ -379,7 +397,7 @@ export const exportsApi = {
     const response = await api.post(`/exports/project/${projectId}`, options);
     return response.data;
   },
-  
+
   /**
    * Get all exports for a project
    * @param {string} projectId - Project ID
@@ -388,7 +406,7 @@ export const exportsApi = {
     const response = await api.get(`/exports/project/${projectId}`);
     return response.data;
   },
-  
+
   /**
    * Get export details
    * @param {string} id - Export ID
@@ -397,7 +415,7 @@ export const exportsApi = {
     const response = await api.get(`/exports/${id}`);
     return response.data;
   },
-  
+
   /**
    * Get download URL for an export
    * @param {string} id - Export ID
@@ -406,7 +424,7 @@ export const exportsApi = {
     const response = await api.get(`/exports/${id}/download`);
     return response.data;
   },
-  
+
   /**
    * Delete an export
    * @param {string} id - Export ID

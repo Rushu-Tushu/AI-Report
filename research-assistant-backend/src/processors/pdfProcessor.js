@@ -10,7 +10,7 @@ const pdfParse = require("pdf-parse");
  * Used for detecting document structure
  */
 
-const MAX_PAGES = 20;
+
 
 
 const SECTION_PATTERNS = [
@@ -30,7 +30,7 @@ const SECTION_PATTERNS = [
  */
 const detectSectionType = (text) => {
   const normalized = text.trim();
-  
+
   for (const section of SECTION_PATTERNS) {
     for (const pattern of section.patterns) {
       if (pattern.test(normalized)) {
@@ -38,7 +38,7 @@ const detectSectionType = (text) => {
       }
     }
   }
-  
+
   return null;
 };
 
@@ -48,22 +48,22 @@ const detectSectionType = (text) => {
  */
 const isLikelyHeading = (line) => {
   const trimmed = line.trim();
-  
+
   // Too long to be a heading
   if (trimmed.length > 100) return false;
-  
+
   // Too short
   if (trimmed.length < 3) return false;
-  
+
   // Numbered heading (1. Introduction, 2.1 Methods)
   if (/^\d+(\.\d+)*\.?\s+[A-Z]/.test(trimmed)) return true;
-  
+
   // All caps heading
   if (trimmed === trimmed.toUpperCase() && trimmed.length > 3) return true;
-  
+
   // Known section pattern
   if (detectSectionType(trimmed)) return true;
-  
+
   return false;
 };
 
@@ -74,17 +74,17 @@ const isLikelyHeading = (line) => {
 const extractTables = (text, pageNum) => {
   const tables = [];
   const tablePattern = /Table\s+(\d+)[.:]?\s*([^\n]+)?/gi;
-  
+
   let match;
   while ((match = tablePattern.exec(text)) !== null) {
     const tableNum = match[1];
     const caption = match[2] ? match[2].trim() : `Table ${tableNum}`;
-    
+
     // Extract some context around the table mention
     const startIndex = Math.max(0, match.index - 100);
     const endIndex = Math.min(text.length, match.index + 500);
     const context = text.substring(startIndex, endIndex);
-    
+
     tables.push({
       id: generateId(),
       tableNumber: parseInt(tableNum, 10),
@@ -93,7 +93,7 @@ const extractTables = (text, pageNum) => {
       pageNum,
     });
   }
-  
+
   return tables;
 };
 
@@ -103,12 +103,12 @@ const extractTables = (text, pageNum) => {
 const extractFigures = (text, pageNum) => {
   const figures = [];
   const figurePattern = /(?:Figure|Fig\.?)\s+(\d+)[.:]?\s*([^\n]+)?/gi;
-  
+
   let match;
   while ((match = figurePattern.exec(text)) !== null) {
     const figNum = match[1];
     const caption = match[2] ? match[2].trim() : `Figure ${figNum}`;
-    
+
     figures.push({
       id: generateId(),
       figureNumber: parseInt(figNum, 10),
@@ -119,7 +119,7 @@ const extractFigures = (text, pageNum) => {
       imageRef: null,
     });
   }
-  
+
   return figures;
 };
 
@@ -130,12 +130,12 @@ const extractFigures = (text, pageNum) => {
 const extractEquations = (text, pageNum) => {
   const equations = [];
   const equationPattern = /(?:Equation|Eq\.?)\s+(\d+)[.:]?\s*([^\n]+)?/gi;
-  
+
   let match;
   while ((match = equationPattern.exec(text)) !== null) {
     const eqNum = match[1];
     const content = match[2] ? match[2].trim() : '';
-    
+
     equations.push({
       id: generateId(),
       equationNumber: parseInt(eqNum, 10),
@@ -143,7 +143,7 @@ const extractEquations = (text, pageNum) => {
       pageNum,
     });
   }
-  
+
   return equations;
 };
 
@@ -153,10 +153,10 @@ const extractEquations = (text, pageNum) => {
 const parseIntoSections = (fullText) => {
   const lines = fullText.split('\n');
   const sections = {};
-  
+
   let currentSection = 'preamble';
   let currentContent = [];
-  
+
   for (const line of lines) {
     if (isLikelyHeading(line)) {
       // Save previous section
@@ -169,7 +169,7 @@ const parseIntoSections = (fullText) => {
           sections[currentSection].text += content + '\n';
         }
       }
-      
+
       // Detect new section type
       const sectionType = detectSectionType(line);
       if (sectionType) {
@@ -179,13 +179,13 @@ const parseIntoSections = (fullText) => {
         }
         sections[currentSection].headings.push(line.trim());
       }
-      
+
       currentContent = [];
     } else {
       currentContent.push(line);
     }
   }
-  
+
   // Save last section
   if (currentContent.length > 0) {
     const content = currentContent.join('\n').trim();
@@ -196,7 +196,7 @@ const parseIntoSections = (fullText) => {
       sections[currentSection].text += content;
     }
   }
-  
+
   // Clean up sections
   const cleanedSections = {};
   for (const [key, value] of Object.entries(sections)) {
@@ -207,7 +207,7 @@ const parseIntoSections = (fullText) => {
       };
     }
   }
-  
+
   return cleanedSections;
 };
 
@@ -219,14 +219,14 @@ const parseIntoSections = (fullText) => {
  */
 export const processPdf = async (pdfBuffer) => {
   const warnings = [];
-  
+
   try {
     // Parse PDF
     const data = await pdfParse(pdfBuffer, {
       // Options for pdf-parse
       max: 0, // No page limit
     });
-    
+
     if (!data.text || data.text.trim().length === 0) {
       warnings.push('No text could be extracted from this PDF. It may be scanned or image-based.');
       return {
@@ -242,34 +242,32 @@ export const processPdf = async (pdfBuffer) => {
         },
       };
     }
-    
+
     const fullText = data.text;
     const pageCount = data.numpages || 0;
-    
+
     // Extract structured content
     const sections = parseIntoSections(fullText);
     const tables = extractTables(fullText, 0); // Page 0 = unknown specific page
     const figures = extractFigures(fullText, 0);
     const equations = extractEquations(fullText, 0);
 
-    if (pdfData.pageCount > MAX_PAGES) {
-      throw new Error(`PDF exceeds ${MAX_PAGES} page limit. Your document has ${pdfData.pageCount} pages. Please upload a smaller document.`);
-    }
-    
+
+
     // Add warnings for potential issues
     if (Object.keys(sections).length <= 1) {
       warnings.push('Could not detect clear section structure. Content may need manual organization.');
     }
-    
+
     if (fullText.length < 1000) {
       warnings.push('Extracted text is very short. Some content may not have been extracted.');
     }
-    
+
     // Check for common OCR artifacts
     if (/[^\x00-\x7F]{10,}/.test(fullText)) {
       warnings.push('Text may contain encoding issues or OCR artifacts.');
     }
-    
+
     return {
       success: true,
       warnings,
@@ -289,11 +287,11 @@ export const processPdf = async (pdfBuffer) => {
         },
       },
     };
-    
+
   } catch (error) {
     console.error('PDF processing error:', error);
     warnings.push(`PDF processing failed: ${error.message}`);
-    
+
     return {
       success: false,
       warnings,
